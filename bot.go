@@ -10,6 +10,11 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+type User struct {
+	ChatID int64 `json:"chat_id"`
+	IsSub  bool  `json:"is_sub"`
+}
+
 func main() {
 	dict := make(map[int64]bool)
 	dict[5825066447] = false
