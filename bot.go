@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -15,10 +16,11 @@ type User struct {
 	IsSub  bool  `json:"is_sub"`
 }
 
+var userlist = []User{}
+var dict = make(map[int64]bool)
+
 func main() {
-	dict := make(map[int64]bool)
-	dict[5825066447] = false
-	// тут жека
+	Initialize()
 
 	bot, err := tgbotapi.NewBotAPI("token")
 	if err != nil {
@@ -44,21 +46,43 @@ func main() {
 		if update.Message == nil {
 			continue
 		}
+
+		us := User{ChatID: update.Message.Chat.ID, IsSub: false}
+		isUserHere(us)
+
 		command := update.Message.Command()
 
 		switch command {
 		case "sub":
+			Unmarshall()
 			var chatID int64
 			chatID = update.Message.Chat.ID
-			dict[chatID] = true
+			for i := 0; i < len(userlist); i++ {
+				if chatID == userlist[i].ChatID {
+					if !userlist[i].IsSub {
+						dict[chatID] = true
+						userlist[i].IsSub = true
+					}
+				}
+			}
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Успешно подписан на отправку и получение тикитоков")
 			bot.Send(msg)
+			Marshall()
 		case "unsub":
+			Unmarshall()
 			var chatID int64
 			chatID = update.Message.Chat.ID
-			dict[chatID] = false
+			for i := 0; i < len(userlist); i++ {
+				if chatID == userlist[i].ChatID {
+					if userlist[i].IsSub {
+						dict[chatID] = false
+						userlist[i].IsSub = false
+					}
+				}
+			}
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Успешно отписан от отправки и получения тикитоков")
 			bot.Send(msg)
+			Marshall()
 		}
 
 		if update.Message != nil && !update.Message.IsCommand() {
@@ -86,6 +110,7 @@ func main() {
 }
 
 func Download(tiktokURL string, outputDir string, ytdlpPath string) error {
+
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
 		log.Printf("Создание директории: %s", outputDir)
 		err = os.MkdirAll(outputDir, 0755)
@@ -113,4 +138,68 @@ func Download(tiktokURL string, outputDir string, ytdlpPath string) error {
 	log.Printf("Вывод yt-dlp:\n%s", outputString)
 	log.Printf("Видео успешно скачано: %s", tiktokURL)
 	return nil
+}
+
+func Marshall() {
+	bytes, err := json.Marshal(userlist)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	file, err := os.Create("users.json")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer file.Close()
+
+	_, er := file.Write(bytes)
+	if er != nil {
+		fmt.Println(er)
+	}
+}
+
+func Unmarshall() {
+	var us []User
+	data, err := os.ReadFile("users.json")
+	if err != nil {
+		fmt.Println(err)
+	}
+	if len(data) == 0 {
+		return
+	} else {
+		er := json.Unmarshal(data, &us)
+		if er != nil {
+			fmt.Println(er)
+		}
+		userlist = us
+	}
+}
+
+func DictWrite() {
+	Unmarshall()
+	for i := 0; i < len(userlist); i++ {
+		dict[userlist[i].ChatID] = userlist[i].IsSub
+	}
+	Marshall()
+}
+
+func Initialize() {
+	Unmarshall()
+	Marshall()
+	DictWrite()
+}
+
+func isUserHere(us User) {
+	Unmarshall()
+	isHere := false
+	for i := 0; i < len(userlist); i++ {
+		if us.ChatID == userlist[i].ChatID {
+			isHere = true
+			break
+		}
+	}
+	if !isHere {
+		userlist = append(userlist, us)
+	}
+	Marshall()
 }
